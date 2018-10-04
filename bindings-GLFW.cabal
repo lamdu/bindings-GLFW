@@ -128,6 +128,7 @@ library
       glfw/src/monitor.c
       glfw/src/window.c
       glfw/src/vulkan.c
+      glfw/src/egl_context.c
 
     cc-options: -D_GLFW_USE_CONFIG_H
 
@@ -136,7 +137,6 @@ library
         glfw/include/os/unix-like
       c-sources:
         glfw/src/glx_context.c
-        glfw/src/egl_context.c
         glfw/src/xkb_unicode.c
         glfw/src/linux_joystick.c
         glfw/src/posix_time.c
@@ -175,12 +175,13 @@ library
          glfw/include/os/darwin
       c-sources:
          glfw/src/cocoa_time.c
-         glfw/src/posix_tls.c
+         glfw/src/posix_thread.c
          glfw/src/cocoa_init.m
          glfw/src/cocoa_joystick.m
          glfw/src/cocoa_monitor.m
          glfw/src/cocoa_window.m
          glfw/src/nsgl_context.m
+         glfw/src/osmesa_context.c
       if !flag(MacOSXUseChdir)
         cc-options: -UGLFW_USE_CHDIR
       if !flag(MacOSXUseMenubar)
@@ -193,7 +194,6 @@ library
       include-dirs:
         glfw/include/os/windows
       c-sources:
-        glfw/src/egl_context.c
         glfw/src/win32_init.c
         glfw/src/win32_joystick.c
         glfw/src/win32_monitor.c
