@@ -242,6 +242,7 @@ import Foreign.Storable (Storable(..))
 #num GLFW_RESIZABLE
 #num GLFW_VISIBLE
 #num GLFW_DECORATED
+#num GLFW_TRANSPARENT_FRAMEBUFFER
 
 #num GLFW_RED_BITS
 #num GLFW_GREEN_BITS
