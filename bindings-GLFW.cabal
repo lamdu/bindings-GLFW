@@ -199,6 +199,7 @@ library
         glfw/src/win32_monitor.c
         glfw/src/win32_time.c
         glfw/src/win32_window.c
+        glfw/src/win32_thread.c
         glfw/src/wgl_context.c
       extra-libraries:
         opengl32
