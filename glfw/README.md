@@ -11,8 +11,8 @@ application development.  It provides a simple, platform-independent API for
 creating windows, contexts and surfaces, reading input, handling events, etc.
 
 GLFW natively supports Windows, macOS and Linux and other Unix-like systems.
-Experimental implementations for the Wayland protocol and the Mir display server
-are available but not yet officially supported.
+An experimental implementation for the Wayland protocol is available but not
+yet officially supported.
 
 GLFW is licensed under the [zlib/libpng
 license](http://www.glfw.org/license.html).
@@ -167,6 +167,8 @@ information on what to include when reporting a bug.
   (#749,#842)
 - Added `GLFW_FOCUS_ON_SHOW` window hint and attribute to control input focus
   on calling show window (#1189)
+- Added `GLFW_SCALE_TO_MONITOR` window hint for automatic window resizing
+  (#676,#1115)
 - Added `GLFW_JOYSTICK_HAT_BUTTONS` init hint (#889)
 - Added `GLFW_LOCK_KEY_MODS` input mode and `GLFW_MOD_*_LOCK` mod bits (#946)
 - Added macOS specific `GLFW_COCOA_RETINA_FRAMEBUFFER` window hint
@@ -269,6 +271,8 @@ information on what to include when reporting a bug.
 - [Cocoa] Bugfix: Window was resized twice when entering full screen (#1085)
 - [Cocoa] Bugfix: Duplicate size events were not filtered (#1085)
 - [Cocoa] Bugfix: Event polling did not initialize AppKit if necessary (#1218)
+- [Cocoa] Bugfix: OpenGL rendering was not initially visible on 10.14
+                  (#1334,#1346)
 - [WGL] Added support for `WGL_EXT_colorspace` for OpenGL ES contexts
 - [WGL] Added support for `WGL_ARB_create_context_no_error`
 - [GLX] Added support for `GLX_ARB_create_context_no_error`
