@@ -27,6 +27,8 @@
 #include "internal.h"
 
 #include <assert.h>
+#include <errno.h>
+#include <limits.h>
 #include <linux/input.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -97,7 +99,7 @@ static void pointerHandleEnter(void* data,
     }
 
     window->wl.decorations.focus = focus;
-    _glfw.wl.pointerSerial = serial;
+    _glfw.wl.serial = serial;
     _glfw.wl.pointerFocus = window;
 
     window->wl.hovered = GLFW_TRUE;
@@ -118,7 +120,7 @@ static void pointerHandleLeave(void* data,
 
     window->wl.hovered = GLFW_FALSE;
 
-    _glfw.wl.pointerSerial = serial;
+    _glfw.wl.serial = serial;
     _glfw.wl.pointerFocus = NULL;
     _glfwInputCursorEnter(window, GLFW_FALSE);
 }
@@ -156,7 +158,7 @@ static void setCursor(_GLFWwindow* window, const char* name)
     buffer = wl_cursor_image_get_buffer(image);
     if (!buffer)
         return;
-    wl_pointer_set_cursor(_glfw.wl.pointer, _glfw.wl.pointerSerial,
+    wl_pointer_set_cursor(_glfw.wl.pointer, _glfw.wl.serial,
                           surface,
                           image->hotspot_x / scale,
                           image->hotspot_y / scale);
@@ -307,7 +309,7 @@ static void pointerHandleButton(void* data,
     if (window->wl.decorations.focus != mainWindow)
         return;
 
-    _glfw.wl.pointerSerial = serial;
+    _glfw.wl.serial = serial;
 
     /* Makes left, right and middle 0, 1 and 2. Overall order follows evdev
      * codes. */
@@ -476,6 +478,7 @@ static void keyboardHandleEnter(void* data,
             return;
     }
 
+    _glfw.wl.serial = serial;
     _glfw.wl.keyboardFocus = window;
     _glfwInputWindowFocus(window, GLFW_TRUE);
 }
@@ -490,6 +493,7 @@ static void keyboardHandleLeave(void* data,
     if (!window)
         return;
 
+    _glfw.wl.serial = serial;
     _glfw.wl.keyboardFocus = NULL;
     _glfwInputWindowFocus(window, GLFW_FALSE);
 }
@@ -573,6 +577,7 @@ static void keyboardHandleKey(void* data,
     action = state == WL_KEYBOARD_KEY_STATE_PRESSED
             ? GLFW_PRESS : GLFW_RELEASE;
 
+    _glfw.wl.serial = serial;
     _glfwInputKey(window, keyCode, key, action,
                   _glfw.wl.xkb.modifiers);
 
@@ -603,6 +608,8 @@ static void keyboardHandleModifiers(void* data,
 {
     xkb_mod_mask_t mask;
     unsigned int modifiers = 0;
+
+    _glfw.wl.serial = serial;
 
     if (!_glfw.wl.xkb.keymap)
         return;
@@ -698,6 +705,70 @@ static const struct wl_seat_listener seatListener = {
     seatHandleName,
 };
 
+static void dataOfferHandleOffer(void* data,
+                                 struct wl_data_offer* dataOffer,
+                                 const char* mimeType)
+{
+}
+
+static const struct wl_data_offer_listener dataOfferListener = {
+    dataOfferHandleOffer,
+};
+
+static void dataDeviceHandleDataOffer(void* data,
+                                      struct wl_data_device* dataDevice,
+                                      struct wl_data_offer* id)
+{
+    if (_glfw.wl.dataOffer)
+        wl_data_offer_destroy(_glfw.wl.dataOffer);
+
+    _glfw.wl.dataOffer = id;
+    wl_data_offer_add_listener(_glfw.wl.dataOffer, &dataOfferListener, NULL);
+}
+
+static void dataDeviceHandleEnter(void* data,
+                                  struct wl_data_device* dataDevice,
+                                  uint32_t serial,
+                                  struct wl_surface *surface,
+                                  wl_fixed_t x,
+                                  wl_fixed_t y,
+                                  struct wl_data_offer *id)
+{
+}
+
+static void dataDeviceHandleLeave(void* data,
+                                  struct wl_data_device* dataDevice)
+{
+}
+
+static void dataDeviceHandleMotion(void* data,
+                                   struct wl_data_device* dataDevice,
+                                   uint32_t time,
+                                   wl_fixed_t x,
+                                   wl_fixed_t y)
+{
+}
+
+static void dataDeviceHandleDrop(void* data,
+                                 struct wl_data_device* dataDevice)
+{
+}
+
+static void dataDeviceHandleSelection(void* data,
+                                      struct wl_data_device* dataDevice,
+                                      struct wl_data_offer* id)
+{
+}
+
+static const struct wl_data_device_listener dataDeviceListener = {
+    dataDeviceHandleDataOffer,
+    dataDeviceHandleEnter,
+    dataDeviceHandleLeave,
+    dataDeviceHandleMotion,
+    dataDeviceHandleDrop,
+    dataDeviceHandleSelection,
+};
+
 static void wmBaseHandlePing(void* data,
                              struct xdg_wm_base* wmBase,
                              uint32_t serial)
@@ -750,6 +821,15 @@ static void registryHandleGlobal(void* data,
                 wl_registry_bind(registry, name, &wl_seat_interface,
                                  _glfw.wl.seatVersion);
             wl_seat_add_listener(_glfw.wl.seat, &seatListener, NULL);
+        }
+    }
+    else if (strcmp(interface, "wl_data_device_manager") == 0)
+    {
+        if (!_glfw.wl.dataDeviceManager)
+        {
+            _glfw.wl.dataDeviceManager =
+                wl_registry_bind(registry, name,
+                                 &wl_data_device_manager_interface, 1);
         }
     }
     else if (strcmp(interface, "xdg_wm_base") == 0)
@@ -958,6 +1038,12 @@ static void createKeyTables(void)
 
 int _glfwPlatformInit(void)
 {
+    const char *cursorTheme;
+    const char *cursorSizeStr;
+    char *cursorSizeEnd;
+    long cursorSizeLong;
+    int cursorSize;
+
     _glfw.wl.cursor.handle = _glfw_dlopen("libwayland-cursor.so.0");
     if (!_glfw.wl.cursor.handle)
     {
@@ -1078,7 +1164,18 @@ int _glfwPlatformInit(void)
 
     if (_glfw.wl.pointer && _glfw.wl.shm)
     {
-        _glfw.wl.cursorTheme = wl_cursor_theme_load(NULL, 32, _glfw.wl.shm);
+        cursorTheme = getenv("XCURSOR_THEME");
+        cursorSizeStr = getenv("XCURSOR_SIZE");
+        cursorSize = 32;
+        if (cursorSizeStr)
+        {
+            errno = 0;
+            cursorSizeLong = strtol(cursorSizeStr, &cursorSizeEnd, 10);
+            if (!*cursorSizeEnd && !errno && cursorSizeLong > 0 && cursorSizeLong <= INT_MAX)
+                cursorSize = (int)cursorSizeLong;
+        }
+        _glfw.wl.cursorTheme =
+            wl_cursor_theme_load(cursorTheme, cursorSize, _glfw.wl.shm);
         if (!_glfw.wl.cursorTheme)
         {
             _glfwInputError(GLFW_PLATFORM_ERROR,
@@ -1086,10 +1183,27 @@ int _glfwPlatformInit(void)
             return GLFW_FALSE;
         }
         // If this happens to be NULL, we just fallback to the scale=1 version.
-        _glfw.wl.cursorThemeHiDPI = wl_cursor_theme_load(NULL, 64, _glfw.wl.shm);
+        _glfw.wl.cursorThemeHiDPI =
+            wl_cursor_theme_load(cursorTheme, 2 * cursorSize, _glfw.wl.shm);
         _glfw.wl.cursorSurface =
             wl_compositor_create_surface(_glfw.wl.compositor);
         _glfw.wl.cursorTimerfd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
+    }
+
+    if (_glfw.wl.seat && _glfw.wl.dataDeviceManager)
+    {
+        _glfw.wl.dataDevice =
+            wl_data_device_manager_get_data_device(_glfw.wl.dataDeviceManager,
+                                                   _glfw.wl.seat);
+        wl_data_device_add_listener(_glfw.wl.dataDevice, &dataDeviceListener, NULL);
+        _glfw.wl.clipboardString = malloc(4096);
+        if (!_glfw.wl.clipboardString)
+        {
+            _glfwInputError(GLFW_PLATFORM_ERROR,
+                            "Wayland: Unable to allocate clipboard memory");
+            return GLFW_FALSE;
+        }
+        _glfw.wl.clipboardSize = 4096;
     }
 
     return GLFW_TRUE;
@@ -1149,6 +1263,14 @@ void _glfwPlatformTerminate(void)
         zxdg_decoration_manager_v1_destroy(_glfw.wl.decorationManager);
     if (_glfw.wl.wmBase)
         xdg_wm_base_destroy(_glfw.wl.wmBase);
+    if (_glfw.wl.dataSource)
+        wl_data_source_destroy(_glfw.wl.dataSource);
+    if (_glfw.wl.dataDevice)
+        wl_data_device_destroy(_glfw.wl.dataDevice);
+    if (_glfw.wl.dataOffer)
+        wl_data_offer_destroy(_glfw.wl.dataOffer);
+    if (_glfw.wl.dataDeviceManager)
+        wl_data_device_manager_destroy(_glfw.wl.dataDeviceManager);
     if (_glfw.wl.pointer)
         wl_pointer_destroy(_glfw.wl.pointer);
     if (_glfw.wl.keyboard)
@@ -1173,6 +1295,11 @@ void _glfwPlatformTerminate(void)
         close(_glfw.wl.timerfd);
     if (_glfw.wl.cursorTimerfd >= 0)
         close(_glfw.wl.cursorTimerfd);
+
+    if (_glfw.wl.clipboardString)
+        free(_glfw.wl.clipboardString);
+    if (_glfw.wl.clipboardSendString)
+        free(_glfw.wl.clipboardSendString);
 }
 
 const char* _glfwPlatformGetVersionString(void)
@@ -1189,4 +1316,3 @@ const char* _glfwPlatformGetVersionString(void)
 #endif
         ;
 }
-
