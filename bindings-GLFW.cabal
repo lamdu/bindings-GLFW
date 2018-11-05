@@ -36,9 +36,6 @@ build-type:    Simple
 extra-source-files:
   README.md
 
-  glfw/deps/EGL/*.h
-  glfw/deps/GL/*.h
-
   glfw/include/GLFW/*.h
   glfw/include/os/unix-like/*.h
   glfw/include/os/windows/*.h
