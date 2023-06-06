@@ -582,10 +582,10 @@ static void keyboardHandleKey(void* data,
             ? GLFW_PRESS : GLFW_RELEASE;
 
     _glfw.wl.serial = serial;
-    _glfwInputKey(window, keyCode, key, action,
-                  _glfw.wl.xkb.modifiers);
+    GLFWbool handled = _glfwInputKey(window, keyCode, key, action,
+                                     _glfw.wl.xkb.modifiers);
 
-    if (action == GLFW_PRESS)
+    if (!handled && action == GLFW_PRESS)
     {
         shouldRepeat = inputChar(window, key);
 

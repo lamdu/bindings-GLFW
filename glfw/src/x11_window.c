@@ -1280,7 +1280,8 @@ static void processEvent(XEvent *event)
                 if (window->x11.lastKeyTime < event->xkey.time)
                 {
                     if (keycode)
-                        _glfwInputKey(window, key, keycode, GLFW_PRESS, mods);
+                        if (_glfwInputKey(window, key, keycode, GLFW_PRESS, mods))
+                            filtered = True;
 
                     window->x11.lastKeyTime = event->xkey.time;
                 }
@@ -1351,7 +1352,8 @@ static void processEvent(XEvent *event)
                 KeySym keysym;
                 XLookupString(&event->xkey, NULL, 0, &keysym, NULL);
 
-                _glfwInputKey(window, key, keycode, GLFW_PRESS, mods);
+                if (_glfwInputKey(window, key, keycode, GLFW_PRESS, mods))
+                    return;
 
                 const long character = _glfwKeySym2Unicode(keysym);
                 if (character != -1)

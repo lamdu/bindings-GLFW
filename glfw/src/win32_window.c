@@ -503,6 +503,87 @@ static void releaseMonitor(_GLFWwindow* window)
     _glfwRestoreVideoModeWin32(window->monitor);
 }
 
+static GLFWbool handleKeyMessage(_GLFWwindow* window, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    int key, scancode;
+    const int action = (HIWORD(lParam) & KF_UP) ? GLFW_RELEASE : GLFW_PRESS;
+    const int mods = getKeyMods();
+
+    scancode = (HIWORD(lParam) & (KF_EXTENDED | 0xff));
+    if (!scancode)
+    {
+        // NOTE: Some synthetic key messages have a scancode of zero
+        // HACK: Map the virtual key back to a usable scancode
+        scancode = MapVirtualKeyW((UINT) wParam, MAPVK_VK_TO_VSC);
+    }
+
+    key = _glfw.win32.keycodes[scancode];
+
+    // The Ctrl keys require special handling
+    if (wParam == VK_CONTROL)
+    {
+        if (HIWORD(lParam) & KF_EXTENDED)
+        {
+            // Right side keys have the extended key bit set
+            key = GLFW_KEY_RIGHT_CONTROL;
+        }
+        else
+        {
+            // NOTE: Alt Gr sends Left Ctrl followed by Right Alt
+            // HACK: We only want one event for Alt Gr, so if we detect
+            //       this sequence we discard this Left Ctrl message now
+            //       and later report Right Alt normally
+            MSG next;
+            const DWORD time = GetMessageTime();
+
+            if (PeekMessageW(&next, NULL, 0, 0, PM_NOREMOVE))
+            {
+                if (next.message == WM_KEYDOWN ||
+                    next.message == WM_SYSKEYDOWN ||
+                    next.message == WM_KEYUP ||
+                    next.message == WM_SYSKEYUP)
+                {
+                    if (next.wParam == VK_MENU &&
+                        (HIWORD(next.lParam) & KF_EXTENDED) &&
+                        next.time == time)
+                    {
+                        // Next message is Right Alt down so discard this
+                        return GLFW_FALSE;
+                    }
+                }
+            }
+
+            // This is a regular Left Ctrl message
+            key = GLFW_KEY_LEFT_CONTROL;
+        }
+    }
+    else if (wParam == VK_PROCESSKEY)
+    {
+        // IME notifies that keys have been filtered by setting the
+        // virtual key-code to VK_PROCESSKEY
+        return GLFW_FALSE;
+    }
+
+    if (action == GLFW_RELEASE && wParam == VK_SHIFT)
+    {
+        // HACK: Release both Shift keys on Shift up event, as when both
+        //       are pressed the first release does not emit any event
+        // NOTE: The other half of this is in _glfwPlatformPollEvents
+        _glfwInputKey(window, GLFW_KEY_LEFT_SHIFT, scancode, action, mods);
+        _glfwInputKey(window, GLFW_KEY_RIGHT_SHIFT, scancode, action, mods);
+    }
+    else if (wParam == VK_SNAPSHOT)
+    {
+        // HACK: Key down is not reported for the Print Screen key
+        _glfwInputKey(window, key, scancode, GLFW_PRESS, mods);
+        _glfwInputKey(window, key, scancode, GLFW_RELEASE, mods);
+    }
+    else
+        return _glfwInputKey(window, key, scancode, action, mods);
+
+    return GLFW_FALSE;
+}
+
 // Window callback function (handles window messages)
 //
 static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg,
@@ -666,82 +747,7 @@ static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg,
         case WM_KEYUP:
         case WM_SYSKEYUP:
         {
-            int key, scancode;
-            const int action = (HIWORD(lParam) & KF_UP) ? GLFW_RELEASE : GLFW_PRESS;
-            const int mods = getKeyMods();
-
-            scancode = (HIWORD(lParam) & (KF_EXTENDED | 0xff));
-            if (!scancode)
-            {
-                // NOTE: Some synthetic key messages have a scancode of zero
-                // HACK: Map the virtual key back to a usable scancode
-                scancode = MapVirtualKeyW((UINT) wParam, MAPVK_VK_TO_VSC);
-            }
-
-            key = _glfw.win32.keycodes[scancode];
-
-            // The Ctrl keys require special handling
-            if (wParam == VK_CONTROL)
-            {
-                if (HIWORD(lParam) & KF_EXTENDED)
-                {
-                    // Right side keys have the extended key bit set
-                    key = GLFW_KEY_RIGHT_CONTROL;
-                }
-                else
-                {
-                    // NOTE: Alt Gr sends Left Ctrl followed by Right Alt
-                    // HACK: We only want one event for Alt Gr, so if we detect
-                    //       this sequence we discard this Left Ctrl message now
-                    //       and later report Right Alt normally
-                    MSG next;
-                    const DWORD time = GetMessageTime();
-
-                    if (PeekMessageW(&next, NULL, 0, 0, PM_NOREMOVE))
-                    {
-                        if (next.message == WM_KEYDOWN ||
-                            next.message == WM_SYSKEYDOWN ||
-                            next.message == WM_KEYUP ||
-                            next.message == WM_SYSKEYUP)
-                        {
-                            if (next.wParam == VK_MENU &&
-                                (HIWORD(next.lParam) & KF_EXTENDED) &&
-                                next.time == time)
-                            {
-                                // Next message is Right Alt down so discard this
-                                break;
-                            }
-                        }
-                    }
-
-                    // This is a regular Left Ctrl message
-                    key = GLFW_KEY_LEFT_CONTROL;
-                }
-            }
-            else if (wParam == VK_PROCESSKEY)
-            {
-                // IME notifies that keys have been filtered by setting the
-                // virtual key-code to VK_PROCESSKEY
-                break;
-            }
-
-            if (action == GLFW_RELEASE && wParam == VK_SHIFT)
-            {
-                // HACK: Release both Shift keys on Shift up event, as when both
-                //       are pressed the first release does not emit any event
-                // NOTE: The other half of this is in _glfwPlatformPollEvents
-                _glfwInputKey(window, GLFW_KEY_LEFT_SHIFT, scancode, action, mods);
-                _glfwInputKey(window, GLFW_KEY_RIGHT_SHIFT, scancode, action, mods);
-            }
-            else if (wParam == VK_SNAPSHOT)
-            {
-                // HACK: Key down is not reported for the Print Screen key
-                _glfwInputKey(window, key, scancode, GLFW_PRESS, mods);
-                _glfwInputKey(window, key, scancode, GLFW_RELEASE, mods);
-            }
-            else
-                _glfwInputKey(window, key, scancode, action, mods);
-
+            handleKeyMessage(window, uMsg, wParam, lParam);
             break;
         }
 
@@ -1897,6 +1903,16 @@ void _glfwPlatformPollEvents(void)
         }
         else
         {
+            if (msg.message == WM_KEYDOWN)
+            {
+                handle = GetActiveWindow();
+                if (handle)
+                {
+                    window = GetPropW(handle, L"GLFW");
+                    if (handleKeyMessage(window, msg.message, msg.wParam, msg.lParam))
+                        continue;
+                }
+            }
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }

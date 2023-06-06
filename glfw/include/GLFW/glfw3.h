@@ -1488,6 +1488,7 @@ typedef void (* GLFWscrollfun)(GLFWwindow*,double,double);
  *  releases may add more actions.
  *  @param[in] mods Bit field describing which [modifier keys](@ref mods) were
  *  held down.
+ *  @return `GLFW_TRUE` if key was handled, or `GLFW_FALSE` otherwise (then it may translate into character events).
  *
  *  @sa @ref input_key
  *  @sa @ref glfwSetKeyCallback
@@ -1497,7 +1498,7 @@ typedef void (* GLFWscrollfun)(GLFWwindow*,double,double);
  *
  *  @ingroup input
  */
-typedef void (* GLFWkeyfun)(GLFWwindow*,int,int,int,int);
+typedef int (* GLFWkeyfun)(GLFWwindow*,int,int,int,int);
 
 /*! @brief The function pointer type for Unicode character callbacks.
  *
