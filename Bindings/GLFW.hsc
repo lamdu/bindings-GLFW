@@ -671,7 +671,7 @@ c'glfwGetNSGLContext =
 #endif
 
 #if defined(GLFW_EXPOSE_NATIVE_X11)
-#ccall glfwGetX11Display , Ptr <GLFWwindow> -> IO (Ptr display)
+#ccall glfwGetX11Display , IO (Ptr display)
 #ccall glfwGetX11Adapter , Ptr <GLFWwindow> -> IO Word64
 #ccall glfwGetX11Monitor , Ptr <GLFWwindow> -> IO Word64
 #ccall glfwGetX11Window  , Ptr <GLFWwindow> -> IO Word64
@@ -683,10 +683,10 @@ c'glfwGetNSGLContext =
 #ccall glfwGetX11SelectionString , IO CString
 
 #else
-p'glfwGetX11Display :: FunPtr (Ptr C'GLFWwindow -> IO (Ptr display))
+p'glfwGetX11Display :: FunPtr (IO (Ptr display))
 p'glfwGetX11Display = nullFunPtr
 
-c'glfwGetX11Display :: Ptr C'GLFWwindow -> IO (Ptr display)
+c'glfwGetX11Display :: IO (Ptr display)
 c'glfwGetX11Display =
   error $ "c'glfwGetX11Display undefined! -- "
        ++ "Did you use the wrong glfw3native API?"
