@@ -10,3 +10,4 @@ cabal.sandbox.config
 .stack-work
 .ghc.environment.*
 dist-newstyle/
+.vscode/
